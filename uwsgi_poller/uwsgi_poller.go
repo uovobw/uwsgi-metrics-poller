@@ -45,7 +45,7 @@ func New(addr string, period int, outdata chan<- *UwsgiStats, events chan<- *Uws
 		quitChan:   quit,
 		ticker:     time.NewTicker(pd),
 	}
-	log.Printf("created poller for %s interval %s", addr, period)
+	log.Printf("created poller for %s interval %d", addr, period)
 	return p, nil
 }
 
