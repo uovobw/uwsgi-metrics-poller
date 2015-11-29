@@ -15,8 +15,22 @@ const (
 	HOST_UNREACHABLE
 	QUIT_RECEIVED
 
-	maxHostRetries = 10
+	maxHostRetries = 5
 )
+
+type UwsgiEvent struct {
+	reason int
+}
+
+func (e *UwsgiEvent) String() string {
+	evts := map[int]string{
+		PARSE_ERROR:      "parse error",
+		HOST_UNREACHABLE: "host is unreachable",
+		QUIT_RECEIVED:    "quit signal received",
+	}
+	msg, _ := evts[e.reason]
+	return msg
+}
 
 type UwsgiPoller struct {
 	Address    *net.TCPAddr
@@ -25,10 +39,6 @@ type UwsgiPoller struct {
 	EventsChan chan<- *UwsgiEvent
 	quitChan   chan int
 	ticker     *time.Ticker
-}
-
-type UwsgiEvent struct {
-	reason int
 }
 
 func New(addr string, period int, outdata chan<- *UwsgiStats, events chan<- *UwsgiEvent, quit chan int) (p *UwsgiPoller, err error) {
@@ -84,10 +94,11 @@ func (p *UwsgiPoller) Run() {
 							reason: HOST_UNREACHABLE,
 						}
 						poller.EventsChan <- e
-						log.Printf("maximum number of retries exceeded, goroutine for host %s quitting", poller.Address.String())
+						log.Printf("maximum number of retries reached (%d), goroutine for host %s quitting", unreachableCount, poller.Address.String())
 						return
 					}
 				} else {
+					unreachableCount = 0
 					poller.StatsChan <- data
 				}
 			case <-poller.quitChan:
