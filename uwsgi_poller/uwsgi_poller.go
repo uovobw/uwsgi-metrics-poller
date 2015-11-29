@@ -69,7 +69,7 @@ func (p *UwsgiPoller) getStats() (s *UwsgiStats, err error) {
 }
 
 func (p *UwsgiPoller) Run() {
-	log.Println("poller for %s running", p.Address.String())
+	log.Printf("poller for %s running", p.Address.String())
 	go func(poller *UwsgiPoller) {
 		unreachableCount := 0
 		for {
