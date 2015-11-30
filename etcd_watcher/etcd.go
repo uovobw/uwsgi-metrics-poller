@@ -20,7 +20,7 @@ const (
 )
 
 type EtcdEvent struct {
-	reason int
+	Reason int
 	data   interface{}
 }
 
@@ -33,7 +33,7 @@ func (e *EtcdEvent) String() string {
 		ETCD_DIR_ERROR:   "unable to reach etcd dir",
 		ETCD_KEY_ERROR:   "unable to read key",
 	}
-	msg, _ := evts[e.reason]
+	msg, _ := evts[e.Reason]
 	return fmt.Sprintf("%s. data: %+v", msg, e.data)
 }
 
@@ -85,7 +85,7 @@ func (e *EtcdWatcher) handleHosts(newSet *set.Set) {
 		if !e.hosts.Has(host) {
 			log.Printf("ADD evt %s", host)
 			e.EventsChan <- &EtcdEvent{
-				reason: HOST_ADDED,
+				Reason: HOST_ADDED,
 				data:   host,
 			}
 			e.hosts.Add(host)
@@ -95,7 +95,7 @@ func (e *EtcdWatcher) handleHosts(newSet *set.Set) {
 		if !newSet.Has(host) {
 			log.Printf("REMOVE evt %s", host)
 			e.EventsChan <- &EtcdEvent{
-				reason: HOST_REMOVED,
+				Reason: HOST_REMOVED,
 				data:   host,
 			}
 			e.hosts.Remove(host)
@@ -112,7 +112,7 @@ func (e *EtcdWatcher) Run() {
 			if err != nil {
 				log.Printf("error reading key %s: %s", e.Dir, err)
 				e.EventsChan <- &EtcdEvent{
-					reason: ETCD_DIR_ERROR,
+					Reason: ETCD_DIR_ERROR,
 					data:   err,
 				}
 				return
@@ -128,7 +128,7 @@ func (e *EtcdWatcher) Run() {
 					if err != nil {
 						log.Printf("error getting key %s: %s", k.Key, err)
 						e.EventsChan <- &EtcdEvent{
-							reason: ETCD_KEY_ERROR,
+							Reason: ETCD_KEY_ERROR,
 							data:   err,
 						}
 						continue
@@ -140,7 +140,7 @@ func (e *EtcdWatcher) Run() {
 						log.Printf("found initial host: %s", h)
 						e.hosts.Add(h)
 						e.EventsChan <- &EtcdEvent{
-							reason: HOST_ADDED,
+							Reason: HOST_ADDED,
 							data:   h,
 						}
 					}
@@ -151,7 +151,7 @@ func (e *EtcdWatcher) Run() {
 			} else {
 				log.Printf("the key provided is not a directory: %s", e.Dir)
 				e.EventsChan <- &EtcdEvent{
-					reason: ETCD_DIR_ERROR,
+					Reason: ETCD_DIR_ERROR,
 					data:   fmt.Errorf("provided key %s is not a directory", e.Dir),
 				}
 				return
