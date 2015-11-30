@@ -2,8 +2,8 @@ Uwsgi Metrics Poller
 ====================
 
 This small hack watches an [Etcd](https://github.com/coreos/etcd) directory and fetches all the keys
-in there, assuming they are in the form <host>:<port>, and polls the host on a given port (not
-necessarily the same as the <port> above) for the [uWSGI stats server](https://uwsgi-docs.readthedocs.org/en/latest/StatsServer.html)
+in there, assuming they are in the form HOST:PORT, and polls the host on a given port (not
+necessarily the same as the PORT above) for the [uWSGI stats server](https://uwsgi-docs.readthedocs.org/en/latest/StatsServer.html)
 It then pushes the collected metrics on [AWS Cloudwatch](https://aws.amazon.com/cloudwatch/) for alarming and autoscaling
 
 This code is very very unstable and only fits my use case, so be warned.
