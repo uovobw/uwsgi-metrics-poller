@@ -19,7 +19,13 @@ const (
 )
 
 type UwsgiEvent struct {
-	reason int
+	Reason int
+}
+
+func makeUwsgiEvent(reason int) *UwsgiEvent {
+	return &UwsgiEvent{
+		Reason: reason,
+	}
 }
 
 func (e *UwsgiEvent) String() string {
@@ -28,7 +34,7 @@ func (e *UwsgiEvent) String() string {
 		HOST_UNREACHABLE: "host is unreachable",
 		QUIT_RECEIVED:    "quit signal received",
 	}
-	msg, _ := evts[e.reason]
+	msg, _ := evts[e.Reason]
 	return msg
 }
 
@@ -90,10 +96,7 @@ func (p *UwsgiPoller) Run() {
 					log.Printf("error getting stats: %s. host might be down", err)
 					unreachableCount += 1
 					if unreachableCount == maxHostRetries {
-						e := &UwsgiEvent{
-							reason: HOST_UNREACHABLE,
-						}
-						poller.EventsChan <- e
+						poller.EventsChan <- makeUwsgiEvent(HOST_UNREACHABLE)
 						log.Printf("maximum number of retries reached (%d), goroutine for host %s quitting", unreachableCount, poller.Address.String())
 						return
 					}
@@ -102,10 +105,7 @@ func (p *UwsgiPoller) Run() {
 					poller.StatsChan <- data
 				}
 			case <-poller.quitChan:
-				e := &UwsgiEvent{
-					reason: QUIT_RECEIVED,
-				}
-				poller.EventsChan <- e
+				poller.EventsChan <- makeUwsgiEvent(QUIT_RECEIVED)
 				log.Printf("poller for %s quitting", poller.Address.String())
 				return
 			}
