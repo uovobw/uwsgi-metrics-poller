@@ -25,11 +25,11 @@ Installation
 
 The command is not `go get`-table since the current process builds it locally. A simple
 
-'''
+```
 git clone https://github.com/uovobw/uwsgi-metrics-poller
 cd uwsgi-metrics-poller
 go build
-'''
+```
 
 should suffice to get a runnable executable
 
