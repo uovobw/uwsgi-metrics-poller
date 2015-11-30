@@ -21,7 +21,7 @@ const (
 
 type EtcdEvent struct {
 	Reason int
-	data   interface{}
+	Data   interface{}
 }
 
 func (e *EtcdEvent) String() string {
@@ -34,7 +34,14 @@ func (e *EtcdEvent) String() string {
 		ETCD_KEY_ERROR:   "unable to read key",
 	}
 	msg, _ := evts[e.Reason]
-	return fmt.Sprintf("%s. data: %+v", msg, e.data)
+	return fmt.Sprintf("%s. data: %+v", msg, e.Data)
+}
+
+func makeEtcdEvent(reason int, data interface{}) *EtcdEvent {
+	return &EtcdEvent{
+		Reason: reason,
+		Data:   data,
+	}
 }
 
 type EtcdWatcher struct {
@@ -84,20 +91,14 @@ func (e *EtcdWatcher) handleHosts(newSet *set.Set) {
 	for _, host := range newSet.List() {
 		if !e.hosts.Has(host) {
 			log.Printf("ADD evt %s", host)
-			e.EventsChan <- &EtcdEvent{
-				Reason: HOST_ADDED,
-				data:   host,
-			}
+			e.EventsChan <- makeEtcdEvent(HOST_ADDED, host)
 			e.hosts.Add(host)
 		}
 	}
 	for _, host := range e.hosts.List() {
 		if !newSet.Has(host) {
 			log.Printf("REMOVE evt %s", host)
-			e.EventsChan <- &EtcdEvent{
-				Reason: HOST_REMOVED,
-				data:   host,
-			}
+			e.EventsChan <- makeEtcdEvent(HOST_REMOVED, host)
 			e.hosts.Remove(host)
 		}
 	}
@@ -111,10 +112,7 @@ func (e *EtcdWatcher) Run() {
 			resp, err := e.client.Get(context.Background(), e.Dir, nil)
 			if err != nil {
 				log.Printf("error reading key %s: %s", e.Dir, err)
-				e.EventsChan <- &EtcdEvent{
-					Reason: ETCD_DIR_ERROR,
-					data:   err,
-				}
+				e.EventsChan <- makeEtcdEvent(ETCD_DIR_ERROR, err)
 				return
 			}
 			if resp.Node.Dir {
@@ -127,10 +125,7 @@ func (e *EtcdWatcher) Run() {
 					str, err := e.getSingleNode(k)
 					if err != nil {
 						log.Printf("error getting key %s: %s", k.Key, err)
-						e.EventsChan <- &EtcdEvent{
-							Reason: ETCD_KEY_ERROR,
-							data:   err,
-						}
+						e.EventsChan <- makeEtcdEvent(ETCD_KEY_ERROR, err)
 						continue
 					}
 					newSet.Add(str)
@@ -139,10 +134,7 @@ func (e *EtcdWatcher) Run() {
 					for _, h := range newSet.List() {
 						log.Printf("found initial host: %s", h)
 						e.hosts.Add(h)
-						e.EventsChan <- &EtcdEvent{
-							Reason: HOST_ADDED,
-							data:   h,
-						}
+						e.EventsChan <- makeEtcdEvent(HOST_ADDED, h)
 					}
 					firstRun = false
 				} else {
@@ -150,10 +142,7 @@ func (e *EtcdWatcher) Run() {
 				}
 			} else {
 				log.Printf("the key provided is not a directory: %s", e.Dir)
-				e.EventsChan <- &EtcdEvent{
-					Reason: ETCD_DIR_ERROR,
-					data:   fmt.Errorf("provided key %s is not a directory", e.Dir),
-				}
+				e.EventsChan <- makeEtcdEvent(ETCD_DIR_ERROR, e.Dir)
 				return
 			}
 		}
