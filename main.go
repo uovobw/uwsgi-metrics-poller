@@ -5,6 +5,7 @@ import (
 	"log"
 	"strings"
 
+	cw "github.com/uovobw/uwsgi-metrics-poller/cloudwatch_pusher"
 	etcd "github.com/uovobw/uwsgi-metrics-poller/etcd_watcher"
 	uwsgi "github.com/uovobw/uwsgi-metrics-poller/uwsgi_poller"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -15,18 +16,25 @@ const (
 )
 
 var (
-	debug              = kingpin.Flag("debug", "enable debug mode.").Short('d').Bool()
-	etcdHosts          = kingpin.Flag("etcd-hosts", "comma separated etcd hosts in the format host:port").Short('e').Default("localhost:4001").Strings()
-	etcdWatchKeys      = kingpin.Flag("etcd-watch-dirs", "comma separated etcd directories to watch for hosts").Short('k').Default("/").Strings()
-	etcdWatchPeriod    = kingpin.Flag("etcd-watch-period", "polling period for the etcd key in seconds").Short('p').Default("30").Int()
-	uwsgiPollingPeriod = kingpin.Flag("uwsgi-polling-period", "polling period in seconds for the uwsgi stats").Short('u').Default("30").Int()
-	uwsgiStatsPort     = kingpin.Flag("uwsgi-stats-port", "port to hit for the uwsgi stats").Short('P').Default("12321").Int()
+	debug               = kingpin.Flag("debug", "enable debug mode.").Short('d').Bool()
+	etcdHosts           = kingpin.Flag("etcd-hosts", "comma separated etcd hosts in the format host:port").Short('e').Default("localhost:4001").Strings()
+	etcdWatchKeys       = kingpin.Flag("etcd-watch-dirs", "comma separated etcd directories to watch for hosts").Short('k').Default("/").Strings()
+	etcdWatchPeriod     = kingpin.Flag("etcd-watch-period", "polling period for the etcd key in seconds").Short('p').Default("30").Int()
+	uwsgiPollingPeriod  = kingpin.Flag("uwsgi-polling-period", "polling period in seconds for the uwsgi stats").Short('u').Default("30").Int()
+	uwsgiStatsPort      = kingpin.Flag("uwsgi-stats-port", "port to hit for the uwsgi stats").Short('P').Default("12321").Int()
+	awsSecretKey        = kingpin.Flag("aws-secret-key", "AWS account secret").String()
+	awsAccessKey        = kingpin.Flag("aws-access-key", "AWS account key").String()
+	awsRegion           = kingpin.Flag("aws-region", "AWS region in which to log").Default("eu-west-1").String()
+	awsNamespace        = kingpin.Flag("aws-namespace", "AWS namespace name for the cloudwatch metric").String()
+	awsAutoscalingGroup = kingpin.Flag("aws-autoscaling-group", "AWS autoscaling group name").String()
 
-	etcdWatchers    map[string]*etcd.EtcdWatcher
-	etcdEventsChan  chan *etcd.EtcdEvent
-	uwsgiStatsChan  chan *uwsgi.UwsgiStats
-	uwsgiEventsChan chan *uwsgi.UwsgiEvent
-	quitChan        chan int
+	cloudwatchPusher *cw.CloudWatchPusher
+	etcdWatchers     map[string]*etcd.EtcdWatcher
+	etcdEventsChan   chan *etcd.EtcdEvent
+	uwsgiStatsChan   chan *uwsgi.UwsgiStats
+	uwsgiEventsChan  chan *uwsgi.UwsgiEvent
+	quitChan         chan int
+	err              error
 )
 
 func init() {
@@ -55,6 +63,11 @@ func main() {
 	log.Printf("starting uwsgi poller (%s)", version)
 	if *debug {
 		log.Printf("running against etcd host(s) %s with key %s period %d uwsgi polling time %d uwsgi port %d", *etcdHosts, *etcdWatchKeys, *etcdWatchPeriod, *uwsgiPollingPeriod, *uwsgiStatsPort)
+	}
+
+	cloudwatchPusher, err = cw.New(*awsAccessKey, *awsSecretKey, *awsRegion)
+	if err != nil {
+		log.Fatalf("cannot create cloudwatch pusher: %s", err)
 	}
 
 	for _, key := range *etcdWatchKeys {
