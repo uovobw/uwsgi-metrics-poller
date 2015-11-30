@@ -1,5 +1,7 @@
 package uwsgi_poller
 
+import "fmt"
+
 type UwsgiStats struct {
 	Cwd               string `json:"cwd"`
 	Gid               int    `json:"gid"`
@@ -57,4 +59,13 @@ type UwsgiStats struct {
 		Tx            int    `json:"tx"`
 		Vsz           int    `json:"vsz"`
 	} `json:"workers"`
+}
+
+func (s *UwsgiStats) String() string {
+	return fmt.Sprintf(
+		"Load %d Pid %d Workers %d",
+		s.Load,
+		s.Pid,
+		len(s.Workers),
+	)
 }
