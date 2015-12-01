@@ -65,10 +65,11 @@ func main() {
 		log.Printf("running against etcd host(s) %s with key %s period %d uwsgi polling time %d uwsgi port %d", *etcdHosts, *etcdWatchKeys, *etcdWatchPeriod, *uwsgiPollingPeriod, *uwsgiStatsPort)
 	}
 
-	cloudwatchPusher, err = cw.New(*awsAccessKey, *awsSecretKey, *awsRegion)
+	cloudwatchPusher, err = cw.New(*awsAccessKey, *awsSecretKey, *awsRegion, *awsNamespace, *awsAutoscalingGroup)
 	if err != nil {
 		log.Fatalf("cannot create cloudwatch pusher: %s", err)
 	}
+	go cloudwatchPusher.Run()
 
 	for _, key := range *etcdWatchKeys {
 		watcher, err := etcd.NewEtcdWatcher(*etcdHosts, key, *etcdWatchPeriod, etcdEventsChan)
@@ -114,7 +115,8 @@ func main() {
 	// handle stats coming from the uwsgi pollers
 	go func(statsChan chan *uwsgi.UwsgiStats) {
 		for stat := range statsChan {
-			log.Printf("received stats from uwsgi poller: %s", stat)
+			//log.Printf("received stats from uwsgi poller: %s", stat)
+			cloudwatchPusher.HandleStat(stat)
 		}
 	}(uwsgiStatsChan)
 

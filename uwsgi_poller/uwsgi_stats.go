@@ -61,6 +61,43 @@ type UwsgiStats struct {
 	} `json:"workers"`
 }
 
+func (s *UwsgiStats) UniqueID() string {
+	return fmt.Sprintf("%s-%d-%d-%d",
+		s.Cwd,
+		s.UID,
+		s.Pid,
+		s.Gid)
+}
+
+func (s *UwsgiStats) TotalWorkers() float64 {
+	return float64(len(s.Workers))
+}
+
+func (s *UwsgiStats) ExceptionsCount() (n float64) {
+	for _, wk := range s.Workers {
+		n += float64(wk.Exceptions)
+	}
+	return n
+}
+
+func (s *UwsgiStats) BusyWorkers() (n float64) {
+	for _, wk := range s.Workers {
+		if wk.Status == "busy" {
+			n += 1.0
+		}
+	}
+	return n
+}
+
+func (s *UwsgiStats) IdleWorkers() (n float64) {
+	for _, wk := range s.Workers {
+		if wk.Status == "idle" {
+			n += 1.0
+		}
+	}
+	return n
+}
+
 func (s *UwsgiStats) String() string {
 	return fmt.Sprintf(
 		"Load %d Pid %d Workers %d",

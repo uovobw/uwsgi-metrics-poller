@@ -2,18 +2,28 @@ package cloudwatch_pusher
 
 import (
 	"log"
+	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
+	u "github.com/uovobw/uwsgi-metrics-poller/uwsgi_poller"
 )
 
 type CloudWatchPusher struct {
 	client *cloudwatch.CloudWatch
+	sync.Mutex
+	NameSpace            string
+	AutoscalingGroupName string
+	totalWorkers         map[string]float64
+	idleWorkers          map[string]float64
+	busyWorkers          map[string]float64
+	exceptionsCount      map[string]float64
 }
 
-func (c *CloudWatchPusher) PushMetric(metricName, namespace, autoscalingGroupName, unit string, value float64, min, max, count, sum float64) (err error) {
+func (c *CloudWatchPusher) newDatapoint(metricName, namespace, autoscalingGroupName, unit string, value float64) (err error) {
 	params := &cloudwatch.PutMetricDataInput{
 		MetricData: []*cloudwatch.MetricDatum{
 			{
@@ -23,12 +33,6 @@ func (c *CloudWatchPusher) PushMetric(metricName, namespace, autoscalingGroupNam
 						Name:  aws.String("AutoscalingGroupName"),
 						Value: aws.String(autoscalingGroupName),
 					},
-				},
-				StatisticValues: &cloudwatch.StatisticSet{
-					Maximum:     aws.Float64(max),
-					Minimum:     aws.Float64(min),
-					SampleCount: aws.Float64(count),
-					Sum:         aws.Float64(sum),
 				},
 				Value: aws.Float64(value),
 				Unit:  aws.String(unit),
@@ -44,10 +48,48 @@ func (c *CloudWatchPusher) PushMetric(metricName, namespace, autoscalingGroupNam
 	return nil
 }
 
-func New(key, secret, region string) (c *CloudWatchPusher, err error) {
+func (c *CloudWatchPusher) pushAggregateMetric(name string, data map[string]float64) {
+	total := float64(0.0)
+	for _, datapoint := range data {
+		total += datapoint
+	}
+	err := c.newDatapoint(name, c.NameSpace, c.AutoscalingGroupName, "Count", total)
+	if err != nil {
+		log.Printf("error pushing %s metric: %s", name, err)
+	}
+}
+
+func (c *CloudWatchPusher) Run() {
+	ticker := time.NewTicker(time.Duration(1) * time.Minute)
+	for {
+		select {
+		case <-ticker.C:
+			c.pushAggregateMetric("total-workers", c.totalWorkers)
+			c.pushAggregateMetric("idle-workers", c.idleWorkers)
+			c.pushAggregateMetric("busy-workers", c.busyWorkers)
+			c.pushAggregateMetric("exceptions-count", c.exceptionsCount)
+		}
+	}
+}
+
+func (c *CloudWatchPusher) HandleStat(stat *u.UwsgiStats) {
+	id := stat.UniqueID()
+	c.totalWorkers[id] = stat.TotalWorkers()
+	c.idleWorkers[id] = stat.IdleWorkers()
+	c.busyWorkers[id] = stat.BusyWorkers()
+	c.exceptionsCount[id] = stat.ExceptionsCount()
+}
+
+func New(key, secret, region, namespace, autoscalingGroupName string) (c *CloudWatchPusher, err error) {
 	creds := credentials.NewStaticCredentials(key, secret, "")
 	c = &CloudWatchPusher{
-		client: cloudwatch.New(session.New(), aws.NewConfig().WithRegion(region).WithCredentials(creds)),
+		client:               cloudwatch.New(session.New(), aws.NewConfig().WithRegion(region).WithCredentials(creds)),
+		NameSpace:            namespace,
+		AutoscalingGroupName: autoscalingGroupName,
+		totalWorkers:         make(map[string]float64),
+		idleWorkers:          make(map[string]float64),
+		busyWorkers:          make(map[string]float64),
+		exceptionsCount:      make(map[string]float64),
 	}
 	err = c.checkClient()
 	if err != nil {
