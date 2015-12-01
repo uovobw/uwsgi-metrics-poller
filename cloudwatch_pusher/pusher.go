@@ -12,11 +12,16 @@ import (
 	u "github.com/uovobw/uwsgi-metrics-poller/uwsgi_poller"
 )
 
+const (
+	hostLatenessTimeoutMinutes = 3
+)
+
 type CloudWatchPusher struct {
 	client *cloudwatch.CloudWatch
 	sync.Mutex
 	NameSpace            string
 	AutoscalingGroupName string
+	hostLastSeen         map[string]time.Time
 	totalWorkers         map[string]float64
 	idleWorkers          map[string]float64
 	busyWorkers          map[string]float64
@@ -72,8 +77,26 @@ func (c *CloudWatchPusher) Run() {
 	}
 }
 
+func (c *CloudWatchPusher) expireOldHosts() {
+	for {
+		now := time.Now().Add(-hostLatenessTimeoutMinutes * time.Minute)
+		for host, lastSeen := range c.hostLastSeen {
+			if lastSeen.Before(now) {
+				log.Printf("removing host with id %s since it has been missing for %d minutes", host, hostLatenessTimeoutMinutes)
+				delete(c.totalWorkers, host)
+				delete(c.busyWorkers, host)
+				delete(c.idleWorkers, host)
+				delete(c.exceptionsCount, host)
+				delete(c.hostLastSeen, host)
+			}
+		}
+		time.Sleep(time.Duration(30) * time.Second)
+	}
+}
+
 func (c *CloudWatchPusher) HandleStat(stat *u.UwsgiStats) {
 	id := stat.UniqueID()
+	c.hostLastSeen[id] = time.Now()
 	c.totalWorkers[id] = stat.TotalWorkers()
 	c.idleWorkers[id] = stat.IdleWorkers()
 	c.busyWorkers[id] = stat.BusyWorkers()
@@ -90,6 +113,7 @@ func New(key, secret, region, namespace, autoscalingGroupName string) (c *CloudW
 		idleWorkers:          make(map[string]float64),
 		busyWorkers:          make(map[string]float64),
 		exceptionsCount:      make(map[string]float64),
+		hostLastSeen:         make(map[string]time.Time),
 	}
 	err = c.checkClient()
 	if err != nil {
@@ -97,6 +121,7 @@ func New(key, secret, region, namespace, autoscalingGroupName string) (c *CloudW
 		return nil, err
 	}
 	log.Printf("created cloudwatch client for region %s", region)
+	go c.expireOldHosts()
 	return c, nil
 }
 
