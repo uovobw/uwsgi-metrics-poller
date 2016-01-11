@@ -27,6 +27,7 @@ type CloudWatchPusher struct {
 	busyWorkers           map[string]float64
 	exceptionsCount       map[string]float64
 	busyWorkersPercentage map[string]float64
+	idleWorkersPercentage map[string]float64
 }
 
 func (c *CloudWatchPusher) newDatapoint(metricName, namespace, autoscalingGroupName, unit string, value float64) (err error) {
@@ -75,6 +76,7 @@ func (c *CloudWatchPusher) Run() {
 			c.pushAggregateMetric("busy-workers", c.busyWorkers)
 			c.pushAggregateMetric("exceptions-count", c.exceptionsCount)
 			c.pushAggregateMetric("busy-workers-percentage", c.busyWorkersPercentage)
+			c.pushAggregateMetric("idle-workers-percentage", c.idleWorkersPercentage)
 		}
 	}
 }
@@ -89,6 +91,7 @@ func (c *CloudWatchPusher) expireOldHosts() {
 				delete(c.busyWorkers, host)
 				delete(c.idleWorkers, host)
 				delete(c.busyWorkersPercentage, host)
+				delete(c.idleWorkersPercentage, host)
 				delete(c.exceptionsCount, host)
 				delete(c.hostLastSeen, host)
 			}
@@ -102,6 +105,7 @@ func (c *CloudWatchPusher) HandleStat(stat *u.UwsgiStats) {
 	c.hostLastSeen[id] = time.Now()
 	c.totalWorkers[id] = stat.TotalWorkers()
 	c.idleWorkers[id] = stat.IdleWorkers()
+	c.idleWorkersPercentage[id] = stat.IdleWorkersPercentage()
 	c.busyWorkers[id] = stat.BusyWorkers()
 	c.busyWorkersPercentage[id] = stat.BusyWorkersPercentage()
 	c.exceptionsCount[id] = stat.ExceptionsCount()
@@ -115,6 +119,7 @@ func New(key, secret, region, namespace, autoscalingGroupName string) (c *CloudW
 		AutoscalingGroupName:  autoscalingGroupName,
 		totalWorkers:          make(map[string]float64),
 		idleWorkers:           make(map[string]float64),
+		idleWorkersPercentage: make(map[string]float64),
 		busyWorkers:           make(map[string]float64),
 		busyWorkersPercentage: make(map[string]float64),
 		exceptionsCount:       make(map[string]float64),

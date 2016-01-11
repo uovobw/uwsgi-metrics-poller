@@ -100,8 +100,20 @@ func (s *UwsgiStats) IdleWorkers() (n float64) {
 
 func (s *UwsgiStats) BusyWorkersPercentage() (n float64) {
 	total_workers := s.TotalWorkers()
+	if total_workers == 0 {
+		return 0.0
+	}
 	busy_workers := s.BusyWorkers()
 	return (busy_workers * 100.0) / total_workers
+}
+
+func (s *UwsgiStats) IdleWorkersPercentage() (n float64) {
+	total_workers := s.TotalWorkers()
+	if total_workers == 0 {
+		return 0.0
+	}
+	idle_workers := s.IdleWorkers()
+	return (idle_workers * 100.0) / total_workers
 }
 
 func (s *UwsgiStats) String() string {
