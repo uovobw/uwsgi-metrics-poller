@@ -98,6 +98,12 @@ func (s *UwsgiStats) IdleWorkers() (n float64) {
 	return n
 }
 
+func (s *UwsgiStats) BusyWorkersPercentage() (n float64) {
+	total_workers := s.TotalWorkers()
+	busy_workers := s.BusyWorkers()
+	return (busy_workers * 100.0) / total_workers
+}
+
 func (s *UwsgiStats) String() string {
 	return fmt.Sprintf(
 		"Load %d Pid %d Workers %d",
