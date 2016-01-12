@@ -1,6 +1,11 @@
 package uwsgi_poller
 
-import "fmt"
+import (
+	"fmt"
+	"regexp"
+)
+
+var socket_name_regex = regexp.MustCompile("[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\:[0-9]{1,5}")
 
 type UwsgiStats struct {
 	Cwd               string `json:"cwd"`
@@ -62,11 +67,18 @@ type UwsgiStats struct {
 }
 
 func (s *UwsgiStats) UniqueID() string {
-	return fmt.Sprintf("%s-%d-%d-%d",
+	socket_name := "_sockname_"
+	for _, socket := range s.Sockets {
+		if socket_name_regex.MatchString(socket.Name) {
+			socket_name = socket.Name
+		}
+	}
+	return fmt.Sprintf("%s-%d-%d-%d-%s",
 		s.Cwd,
 		s.UID,
 		s.Pid,
-		s.Gid)
+		s.Gid,
+		socket_name)
 }
 
 func (s *UwsgiStats) TotalWorkers() float64 {
