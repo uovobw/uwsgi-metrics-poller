@@ -79,12 +79,31 @@ func NewEtcdWatcher(endpoints []string, dir string, pollTime int, eventsChan cha
 }
 
 func (e *EtcdWatcher) getSingleNode(n *client.Node) (s string, err error) {
-	resp, err := e.client.Get(context.Background(), n.Key, nil)
-	if err != nil {
-		log.Printf("error reading key %s: %s", n.Key, err)
-		return "", err
+	// when we expire this value we return error reading from etcd
+	retry_counter := 10
+	for {
+		resp, err := e.client.Get(context.Background(), n.Key, nil)
+		// check for error and retry, decreasing the counter, if there is one
+		if err != nil {
+			if err == context.Canceled {
+				log.Printf("context canceled: %s", err)
+			} else if err == context.DeadlineExceeded {
+				log.Printf("context deadline exceeded: %s", err)
+			} else if cerr, ok := err.(*client.ClusterError); ok {
+				log.Printf("cluster errors: %s", cerr.Errors)
+			} else {
+				log.Printf("error reading key %s: %s", n.Key, err)
+			}
+			retry_counter -= 1
+		} else {
+			// no error, return the value
+			return resp.Node.Value, nil
+		}
+		time.Sleep(500 * time.Millisecond)
+		if retry_counter == 0 {
+			return "", err
+		}
 	}
-	return resp.Node.Value, nil
 }
 
 func (e *EtcdWatcher) handleHosts(newSet *set.Set) {
